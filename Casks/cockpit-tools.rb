@@ -1,6 +1,6 @@
 cask "cockpit-tools" do
-  version "0.5.4"
-  sha256 "8f07029f6d5611dd272ddba7309cd7afb9a3c45842f4bd4728c01f6067d16c62"
+  version "0.7.0"
+  sha256 "c03a6fe0e9d16a9bd57bee4e56470a0cb0b36ff63de82c5f8c6730a5d0bd61d8"
 
   url "https://github.com/jlcodes99/cockpit-tools/releases/download/v#{version}/Cockpit.Tools_#{version}_universal.dmg",
       verified: "github.com/jlcodes99/cockpit-tools/"
@@ -9,6 +9,12 @@ cask "cockpit-tools" do
   homepage "https://github.com/jlcodes99/cockpit-tools"
 
   auto_updates true
+
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-cr", "#{appdir}/Cockpit Tools.app"],
+                   sudo: true
+  end
 
   app "Cockpit Tools.app"
 
@@ -20,11 +26,8 @@ cask "cockpit-tools" do
   ]
 
   caveats <<~EOS
-    If you encounter the "App is damaged" error, please run:
+    The app is automatically quarantined by macOS. A postflight hook has been added to remove this quarantine.
+    If you still encounter the "App is damaged" error, please run:
       sudo xattr -rd com.apple.quarantine "/Applications/Cockpit Tools.app"
-
-    Or install with the --no-quarantine flag:
-      brew install --cask --no-quarantine cockpit-tools
   EOS
 end
-
