@@ -7,6 +7,16 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [0.11.1] - 2026-03-08
+
+### Changed
+- **Gemini import now validates token state immediately**: JSON import and local `~/.gemini` import now trigger a post-import token refresh, so account metadata is synchronized right after import.
+- **Gemini refresh state is now persisted on every outcome**: refresh failures now write `status=error` plus `status_reason` to the account record, and successful refreshes clear the error status.
+
+### Fixed
+- **Gemini refresh failures no longer stay as log-only signals**: failed manual or batch refresh attempts are now persisted to account status fields for consistent UI visibility.
+
+---
 ## [0.11.0] - 2026-03-08
 
 ### Added

@@ -20,16 +20,61 @@ pub fn delete_gemini_accounts(account_ids: Vec<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn import_gemini_from_json(json_content: String) -> Result<Vec<GeminiAccount>, String> {
-    gemini_account::import_from_json(&json_content)
+pub async fn import_gemini_from_json(
+    app: AppHandle,
+    json_content: String,
+) -> Result<Vec<GeminiAccount>, String> {
+    let mut accounts = gemini_account::import_from_json(&json_content)?;
+
+    for account in accounts.iter_mut() {
+        match gemini_account::refresh_account_token(&account.id).await {
+            Ok(refreshed) => *account = refreshed,
+            Err(error) => {
+                logger::log_warn(&format!(
+                    "[Gemini Command] JSON 导入后刷新失败: account_id={}, error={}",
+                    account.id, error
+                ));
+                let _ = gemini_account::set_account_status(
+                    &account.id,
+                    Some("error"),
+                    Some(&error),
+                );
+                account.status = Some("error".to_string());
+                account.status_reason = Some(error);
+            }
+        }
+    }
+
+    let _ = crate::modules::tray::update_tray_menu(&app);
+    Ok(accounts)
 }
 
 #[tauri::command]
-pub fn import_gemini_from_local() -> Result<Vec<GeminiAccount>, String> {
-    match gemini_account::import_from_local()? {
-        Some(account) => Ok(vec![account]),
-        None => Err("未找到本地 Gemini 登录信息".to_string()),
+pub async fn import_gemini_from_local(app: AppHandle) -> Result<Vec<GeminiAccount>, String> {
+    let mut account = match gemini_account::import_from_local()? {
+        Some(a) => a,
+        None => return Err("未找到本地 Gemini 登录信息".to_string()),
+    };
+
+    match gemini_account::refresh_account_token(&account.id).await {
+        Ok(refreshed) => account = refreshed,
+        Err(error) => {
+            logger::log_warn(&format!(
+                "[Gemini Command] 本地导入后刷新失败: account_id={}, error={}",
+                account.id, error
+            ));
+            let _ = gemini_account::set_account_status(
+                &account.id,
+                Some("error"),
+                Some(&error),
+            );
+            account.status = Some("error".to_string());
+            account.status_reason = Some(error);
+        }
     }
+
+    let _ = crate::modules::tray::update_tray_menu(&app);
+    Ok(vec![account])
 }
 
 #[tauri::command]
@@ -69,6 +114,11 @@ pub async fn refresh_gemini_token(
                 started_at.elapsed().as_millis(),
                 err
             ));
+            let _ = gemini_account::set_account_status(
+                &account_id,
+                Some("error"),
+                Some(&err),
+            );
             Err(err)
         }
     }
@@ -130,6 +180,13 @@ pub async fn gemini_oauth_login_complete(
                 "[Gemini OAuth] 登录后自动刷新配额失败: account_id={}, error={}",
                 account.id, error
             ));
+            let _ = gemini_account::set_account_status(
+                &account.id,
+                Some("error"),
+                Some(&error),
+            );
+            account.status = Some("error".to_string());
+            account.status_reason = Some(error);
         }
     }
 
@@ -183,6 +240,13 @@ pub async fn add_gemini_account_with_token(
                 "[Gemini Command] Token 导入后刷新失败: account_id={}, error={}",
                 account.id, error
             ));
+            let _ = gemini_account::set_account_status(
+                &account.id,
+                Some("error"),
+                Some(&error),
+            );
+            account.status = Some("error".to_string());
+            account.status_reason = Some(error);
         }
     }
 

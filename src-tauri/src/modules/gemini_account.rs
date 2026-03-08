@@ -381,6 +381,19 @@ pub fn update_account_tags(account_id: &str, tags: Vec<String>) -> Result<Gemini
     Ok(updated)
 }
 
+pub fn set_account_status(
+    account_id: &str,
+    status: Option<&str>,
+    reason: Option<&str>,
+) -> Result<(), String> {
+    let mut account =
+        load_account_file(account_id).ok_or_else(|| "Gemini 账号不存在".to_string())?;
+    account.status = status.map(|s| s.to_string());
+    account.status_reason = reason.map(|r| r.to_string());
+    upsert_account_record(account)?;
+    Ok(())
+}
+
 fn parse_gemini_account_from_json_object(
     value: &Value,
 ) -> Result<GeminiOAuthCompletePayload, String> {
@@ -1227,6 +1240,8 @@ pub async fn refresh_account_token(account_id: &str) -> Result<GeminiAccount, St
         .or_else(|| Some("oauth-personal".to_string()));
     account.gemini_usage_raw = Some(quota_data);
     account.last_used = now_ts();
+    account.status = None;
+    account.status_reason = None;
 
     let updated = account.clone();
     upsert_account_record(account)?;
@@ -1252,6 +1267,9 @@ pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<GeminiAccount, S
                     .await
                     .map_err(|e| format!("获取 Gemini 刷新并发许可失败: {}", e))?;
                 let result = refresh_account_token(&account_id).await;
+                if let Err(ref error) = result {
+                    let _ = set_account_status(&account_id, Some("error"), Some(error));
+                }
                 Ok::<(String, Result<GeminiAccount, String>), String>((account_id, result))
             }
         })
